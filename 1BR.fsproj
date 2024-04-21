@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>_1BR</RootNamespace>
+    <OtherFlags>--nowarn:9</OtherFlags>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Util.fs" />
+    <Compile Include="Challenge.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+</Project>
