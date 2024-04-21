@@ -25,8 +25,8 @@ module Util =
     val mutable private length : int64
     new (ptr : nativeptr<byte>, length : int64) = { ptr = ptr; length = length }
 
-    member this.Ptr = this.Ptr
-    member this.Length = this.Length
+    member this.Ptr = this.ptr
+    member this.Length = this.length
     member this.ReadOnlySpan = ReadOnlySpan<byte> (NativePtr.toVoidPtr this.ptr, int this.length)
     member this.Slice (start : int, length : int64) = Input (NativePtr.add this.ptr start, length)
     member this.Slice (start : int) = Input (NativePtr.add this.ptr start, this.length - int64 start)
@@ -42,22 +42,22 @@ module Util =
       let mutable p = input.Ptr
       let length = input.Length
       while offset < length do
-          let mutable chunkLength = int ( min (length - offset) (int64 idealChunkLength - 256L))
-          let mutable pNextChunk = NativePtr.add p chunkLength
-          offset <- offset + int64 chunkLength
-          // Find next '\n'.
-          while (offset < length) && (NativePtr.read pNextChunk <> '\n'B) do
-              pNextChunk <- NativePtr.add pNextChunk 1
-              chunkLength <- chunkLength + 1
-              offset <- offset + 1L
-          // Move beyond the '\n'.
-          if offset < length then
-              pNextChunk <- NativePtr.add pNextChunk 1
-              chunkLength <- chunkLength + 1
-              offset <- offset + 1L
-          // Output previous chunk.
-          chunks.Add (Input (p, chunkLength))
-          p <- pNextChunk
+        let mutable chunkLength = int ( min (length - offset) (int64 idealChunkLength - 256L))
+        let mutable pNextChunk = NativePtr.add p chunkLength
+        offset <- offset + int64 chunkLength
+        // Find next '\n'.
+        while (offset < length) && (NativePtr.read pNextChunk <> '\n'B) do
+          pNextChunk <- NativePtr.add pNextChunk 1
+          chunkLength <- chunkLength + 1
+          offset <- offset + 1L
+        // Move beyond the '\n'.
+        if offset < length then
+          pNextChunk <- NativePtr.add pNextChunk 1
+          chunkLength <- chunkLength + 1
+          offset <- offset + 1L
+        // Output previous chunk.
+        chunks.Add (Input (p, chunkLength))
+        p <- pNextChunk
       Array.ofSeq chunks
 
 
@@ -165,7 +165,7 @@ module Util =
 
     /// We shall store temperature floating point numbers with one decimal digit
     /// as integers. This method adds a new such temperature to the statistics.
-    member this.Add (tmp : int) (set : bool) =
+    member this.Add (tmp : int, set : bool) =
       if set then
         this.Min <- tmp
         this.Max <- tmp
@@ -214,8 +214,8 @@ module Util =
       |> Seq.sortBy (fun (struct (city, _)) -> city)
 
     /// Adds a new temperature to the statistics for a city.
-    let inline add (cityState : CityStats) (city : City) (temp : int) =
+    let add (cityState : CityStats) (city : City) (temp : int) =
       let mutable exists = false
-      let stats = CollectionsMarshal.GetValueRefOrAddDefault (cityState, city, &exists)
-      stats.Add temp (not exists)
+      let mutable stat : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityState, city, &exists)
+      stat.Add (temp, not exists)
 

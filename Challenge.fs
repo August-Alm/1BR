@@ -15,7 +15,7 @@ module Challenge =
       delim <- ", "
     printfn "}"
     
-  let inline private runChunk (chunk : Input) =
+  let private runChunk (chunk : Input) =
     let cityStats = CityStats.create 1024
     let mutable input = chunk
     while input.Length > 0L do
@@ -27,7 +27,11 @@ module Challenge =
   let run idealChunkLength input =
     input
     |> Input.chunkify idealChunkLength
-    |> Array.Parallel.map runChunk 
+#if DEBUG
+    |> Array.map runChunk
+#else
+    |> Array.Parallel.map runChunk
+#endif
     |> CityStats.merge
 
   let runMemoryMapped idealChunkLength filePath  =
