@@ -29,16 +29,12 @@ module Challenge =
     |> Input.chunkify idealChunkLength
     |> Array.Parallel.map runChunk 
     |> CityStats.merge
-    |> print
 
   let runMemoryMapped idealChunkLength filePath  =
-    let mmf = MemoryMappedFile.CreateFromFile (filePath, FileMode.Open)
-    let accessor = mmf.CreateViewAccessor ()
+    use mmf = MemoryMappedFile.CreateFromFile (filePath, FileMode.Open)
+    use accessor = mmf.CreateViewAccessor ()
+    use accessorHandle = accessor.SafeMemoryMappedViewHandle
     let fileLength = accessor.Capacity
     let mutable ptr = NativePtr.nullPtr<byte>
-    let accessorHandle = accessor.SafeMemoryMappedViewHandle
     accessorHandle.AcquirePointer &ptr
     run idealChunkLength (Input (ptr, fileLength)) 
-    accessorHandle.ReleasePointer ()
-    accessorHandle.Dispose ()
-    mmf.Dispose ()
