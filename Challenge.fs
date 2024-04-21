@@ -1,5 +1,6 @@
 namespace OneBRC
 
+[<RequireQualifiedAccess>]
 module Challenge =
 
   open System.IO.MemoryMappedFiles

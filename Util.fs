@@ -191,6 +191,7 @@ module Util =
   /// A dictionary of city names to temperature statistics.
   type CityStats = Dictionary<City, Stat>
   
+  [<RequireQualifiedAccess>]
   module CityStats =
 
     let create (capacity : int) = Dictionary<City, Stat> capacity
