@@ -189,11 +189,14 @@ module Util =
       sprintf "%.1f/%.1f/%.1f" this.Minimum this.Mean this.Maximum
 
     /// Merges another statistics object into this one.
-    member this.Merge (other : Stat) =
-      this.Min <- min this.Min other.Min
-      this.Max <- max this.Max other.Max
-      this.Sum <- this.Sum + other.Sum
-      this.Count <- this.Count + other.Count
+    member this.Merge (other : Stat, set : bool) =
+      if set then
+        this.Min <- min this.Min other.Min
+        this.Max <- max this.Max other.Max
+        this.Sum <- this.Sum + other.Sum
+        this.Count <- this.Count + other.Count
+      else
+        this <- other
 
     
   /// A dictionary of city names to temperature statistics.
@@ -206,9 +209,8 @@ module Util =
 
     let privateAddMerge (cityStats : CityStats) (city : City) (stat : Stat) =
       let mutable exists = false
-      let stat' = CollectionsMarshal.GetValueRefOrAddDefault (cityStats, city, &exists)
-      if exists then stat'.Merge stat
-      else cityStats[city] <- stat
+      let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityStats, city, &exists)
+      statRef.Merge (stat, exists)
 
     /// Merges a sequence of city statistics dictionaries into a single sequence
     /// sorted by city name.
@@ -224,6 +226,6 @@ module Util =
     /// Adds a new temperature to the statistics for a city.
     let add (cityState : CityStats) (city : City) (temp : int) =
       let mutable exists = false
-      let mutable stat : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityState, city, &exists)
-      stat.Add (temp, not exists)
+      let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityState, city, &exists)
+      statRef.Add (temp, not exists)
 
