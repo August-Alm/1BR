@@ -92,7 +92,7 @@ module Util =
 
     /// Reads a temperature from `input` up to the first newline, and mutates
     /// `input` to the tail that follows it. The temperature is returned as an
-    /// integer, with the decimal point implied after the first digit.
+    /// integer, with the decimal point implied before the last digit.
     let parse (input : Input byref) =
       let span = Parse.readTo '\n'B &input
       let mutable b = span[0]
@@ -117,10 +117,13 @@ module Util =
     override _.ToString () = String (NativePtr.cast ptr, 0, length, Text.Encoding.UTF8)
 
     override _.GetHashCode () =
-      if length > 3 then NativePtr.read<int> (NativePtr.cast ptr)
-      elif length > 1 then int (NativePtr.read<int16> (NativePtr.cast ptr))
-      elif length > 0 then int (NativePtr.read<byte> (NativePtr.cast ptr))
-      else 0
+      let prime = 16777619u
+      if length >= 3 then
+        let k = NativePtr.read<uint32> (NativePtr.cast ptr)
+        int ((k * prime) ^^^ (uint length))
+      else
+        let k = uint (NativePtr.read<uint16> (NativePtr.cast ptr))
+        int ((k * prime) ^^^ (uint length))
     
     override this.Equals (obj : obj) =
       match obj with

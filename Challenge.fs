@@ -6,6 +6,7 @@ module Challenge =
   open System.IO.MemoryMappedFiles
   open Microsoft.FSharp.NativeInterop
   open System.IO
+  open System.Threading
 
   let print (css : (struct (City * Stat)) seq) =
     printf "{"
@@ -15,6 +16,18 @@ module Challenge =
       delim <- ", "
     printfn "}"
     
+  type Chunk (input : Input) =
+    let cityStats = CityStats.create 1024
+
+    member _.CityStats = cityStats
+
+    member _.Run () =
+      let mutable input = input
+      while input.Length > 0L do
+        let city = City.parse &input
+        let temp = Temp.parse &input
+        CityStats.add cityStats city temp
+
   let private runChunk (chunk : Input) =
     let cityStats = CityStats.create 1024
     let mutable input = chunk
@@ -23,6 +36,18 @@ module Challenge =
       let temp = Temp.parse &input
       CityStats.add cityStats city temp
     cityStats
+
+  let run' idealChunkLength input =
+    let chunks =
+      input
+      |> Input.chunkify idealChunkLength
+      |> Array.map Chunk
+    let threads = chunks |> Array.map (fun c -> Thread (c.Run))
+    threads |> Array.iter (fun t -> t.Start ())
+    threads |> Array.iter (fun t -> t.Join ())
+    chunks
+    |> Array.map (fun c -> c.CityStats)
+    |> CityStats.merge
 
   let run idealChunkLength input =
     input
@@ -41,4 +66,5 @@ module Challenge =
     let fileLength = accessor.Capacity
     let mutable ptr = NativePtr.nullPtr<byte>
     accessorHandle.AcquirePointer &ptr
-    run idealChunkLength (Input (ptr, fileLength)) 
+    //run idealChunkLength (Input (ptr, fileLength)) 
+    run' idealChunkLength (Input (ptr, fileLength)) 
