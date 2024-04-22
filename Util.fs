@@ -28,8 +28,10 @@ module Util =
     member this.Ptr = this.ptr
     member this.Length = this.length
     member this.ReadOnlySpan = ReadOnlySpan<byte> (NativePtr.toVoidPtr this.ptr, int this.length)
-    member this.Slice (start : int, length : int64) = Input (NativePtr.add this.ptr start, length)
-    member this.Slice (start : int) = Input (NativePtr.add this.ptr start, this.length - int64 start)
+
+    member this.Shift (offset : int) =
+      this.ptr <- NativePtr.add this.ptr offset
+      this.length <- this.length - int64 offset
 
   [<RequireQualifiedAccess>]
   module Input =
@@ -77,7 +79,7 @@ module Util =
         input.ReadOnlySpan
       else
         let tmp = input.ReadOnlySpan.Slice (0, int i)
-        input <- input.Slice (i + 1)
+        input.Shift (i + 1)
         tmp
 
   [<RequireQualifiedAccess>]
