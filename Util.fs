@@ -58,7 +58,7 @@ module Util =
         // Output previous chunk.
         chunks.Add (Input (p, chunkLength))
         p <- pNextChunk
-      Array.ofSeq chunks
+      chunks
 
 
   module private Parse =

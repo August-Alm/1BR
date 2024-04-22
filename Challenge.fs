@@ -41,17 +41,21 @@ module Challenge =
     let chunks =
       input
       |> Input.chunkify idealChunkLength
-      |> Array.map Chunk
-    let threads = chunks |> Array.map (fun c -> Thread (c.Run))
+      |> Seq.map Chunk
+    let threads =
+      chunks
+      |> Seq.map (fun c -> Thread (c.Run))
+      |> Seq.toArray
     threads |> Array.iter (fun t -> t.Start ())
     threads |> Array.iter (fun t -> t.Join ())
     chunks
-    |> Array.map (fun c -> c.CityStats)
+    |> Seq.map (fun c -> c.CityStats)
     |> CityStats.merge
 
   let run idealChunkLength input =
     input
     |> Input.chunkify idealChunkLength
+    |> Seq.toArray
 #if DEBUG
     |> Array.map runChunk
 #else
