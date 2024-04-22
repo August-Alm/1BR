@@ -58,7 +58,7 @@ module Util =
         // Output previous chunk.
         chunks.Add (Input (p, chunkLength))
         p <- pNextChunk
-      chunks
+      Array.ofSeq chunks
 
 
   module private Parse =
@@ -207,21 +207,19 @@ module Util =
 
     let create (capacity : int) = Dictionary<City, Stat> capacity
 
-    let privateAddMerge (cityStats : CityStats) (city : City) (stat : Stat) =
+    let private addMerge (cityStats : CityStats) (city : City) (stat : Stat) =
       let mutable exists = false
       let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityStats, city, &exists)
       statRef.Merge (stat, exists)
 
     /// Merges a sequence of city statistics dictionaries into a single sequence
     /// sorted by city name.
-    let merge (cityStatss : CityStats seq) : (struct (City * Stat)) seq =
+    let merge (cityStatss : CityStats seq) =
       let result = create 1024
       for cityStats in cityStatss do
         for KeyValue (city, stat) in cityStats do
-          privateAddMerge result city stat
+          addMerge result city stat
       result
-      |> Seq.map (fun (KeyValue (city, stat)) -> struct (city, stat))
-      |> Seq.sortBy (fun (struct (city, _)) -> city)
 
     /// Adds a new temperature to the statistics for a city.
     let add (cityState : CityStats) (city : City) (temp : int) =

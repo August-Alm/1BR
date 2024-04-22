@@ -8,26 +8,33 @@ module Challenge =
   open System.IO
   open System.Threading
 
-  let print (css : (struct (City * Stat)) seq) =
+  module Array =
+
+    type private Mapping<'a, 'b> (f : 'a -> 'b, x : 'a) =
+      let mutable result = Unchecked.defaultof<'b>
+      member _.Run () = result <- f x
+      member _.Result = result
+    
+    /// Morally equivalent to `Array.Parallel.map` but tests show it's faster.
+    let mapParallel (f : 'a -> 'b) (xs : 'a array) : 'b array =
+      let mappings = xs |> Array.map (fun x -> Mapping (f, x))
+      let threads = mappings |> Array.map (fun m -> Thread (fun () -> m.Run ()))
+      for t in threads do t.Start ()
+      for t in threads do t.Join ()
+      mappings |> Array.map _.Result
+
+
+  let print (cityStats : CityStats) =
     printf "{"
     let mutable delim = ""
-    for (struct (city, stat)) in css do
-      printf "%s%A=%A" delim city stat
-      delim <- ", "
+    cityStats
+    |> Seq.sortBy _.Key
+    |> Seq.iter
+      (fun (KeyValue (city, stat)) ->
+        printf "%s%A=%A" delim city stat
+        delim <- ", ")
     printfn "}"
     
-  type Chunk (input : Input) =
-    let cityStats = CityStats.create 1024
-
-    member _.CityStats = cityStats
-
-    member _.Run () =
-      let mutable input = input
-      while input.Length > 0L do
-        let city = City.parse &input
-        let temp = Temp.parse &input
-        CityStats.add cityStats city temp
-
   let private runChunk (chunk : Input) =
     let cityStats = CityStats.create 1024
     let mutable input = chunk
@@ -37,29 +44,13 @@ module Challenge =
       CityStats.add cityStats city temp
     cityStats
 
-  let run' idealChunkLength input =
-    let chunks =
-      input
-      |> Input.chunkify idealChunkLength
-      |> Seq.map Chunk
-    let threads =
-      chunks
-      |> Seq.map (fun c -> Thread (c.Run))
-      |> Seq.toArray
-    threads |> Array.iter (fun t -> t.Start ())
-    threads |> Array.iter (fun t -> t.Join ())
-    chunks
-    |> Seq.map (fun c -> c.CityStats)
-    |> CityStats.merge
-
   let run idealChunkLength input =
     input
     |> Input.chunkify idealChunkLength
-    |> Seq.toArray
 #if DEBUG
     |> Array.map runChunk
 #else
-    |> Array.Parallel.map runChunk
+    |> Array.mapParallel runChunk
 #endif
     |> CityStats.merge
 
@@ -70,5 +61,4 @@ module Challenge =
     let fileLength = accessor.Capacity
     let mutable ptr = NativePtr.nullPtr<byte>
     accessorHandle.AcquirePointer &ptr
-    //run idealChunkLength (Input (ptr, fileLength)) 
-    run' idealChunkLength (Input (ptr, fileLength)) 
+    run idealChunkLength (Input (ptr, fileLength)) 
