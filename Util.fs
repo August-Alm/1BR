@@ -118,12 +118,17 @@ module Util =
 
     override _.GetHashCode () =
       let prime = 16777619u
-      if length >= 3 then
+      if length > 3 then
         let k = NativePtr.read<uint32> (NativePtr.cast ptr)
         int ((k * prime) ^^^ (uint length))
-      else
+      elif length > 1 then
         let k = uint (NativePtr.read<uint16> (NativePtr.cast ptr))
         int ((k * prime) ^^^ (uint length))
+      elif length > 0 then
+        let k = uint (NativePtr.read<byte> (NativePtr.cast ptr))
+        int ((k * prime) ^^^ (uint length))
+      else
+        0
     
     override this.Equals (obj : obj) =
       match obj with
