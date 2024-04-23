@@ -56,8 +56,7 @@ module Challenge =
   
   let mmfInput filePath =
     use mmf = MemoryMappedFile.CreateFromFile (filePath, FileMode.Open)
-    use stream = new FileStream (
-      filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.SequentialScan)
+    use stream = new FileStream (filePath, FileMode.Open)
     let fileLength = stream.Length
     use accessor = mmf.CreateViewAccessor (0, fileLength, MemoryMappedFileAccess.Read)
     use accessorHandle = accessor.SafeMemoryMappedViewHandle
