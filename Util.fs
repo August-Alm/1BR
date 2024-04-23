@@ -87,10 +87,10 @@ module Util =
 
     let inline private asTemp init (span : ReadOnlySpan<byte>) =
       let mutable n = init
-      for b in span.Slice 1 do
-        if b <> '.'B then
-          n <- n * 10 + int (b - '0'B)
-      n
+      for b in span.Slice (0, span.Length - 2) do
+        n <- n * 10 + int (b - '0'B)
+      let b = span[span.Length - 1]
+      n * 10 + int (b - '0'B)
 
     /// Reads a temperature from `input` up to the first newline, and mutates
     /// `input` to the tail that follows it. The temperature is returned as an
@@ -99,9 +99,8 @@ module Util =
       let span = Parse.readTo '\n'B &input
       let mutable b = span[0]
       let isNeg = (b = '-'B)
-      if isNeg then -(asTemp 0 span)
-      else asTemp (int (b - '0'B)) span
-    
+      if isNeg then -(asTemp 0 (span.Slice 1))
+      else asTemp (int (b - '0'B)) (span.Slice 1)
 
   /// Represents a city name. Equivalent to `ReadOnlySpan<byte>` but with custom
   /// hashing, equality and comparison.
@@ -169,9 +168,12 @@ module Util =
     private new (min : int, max : int, sum : int, count : int) =
       { Min = min; Max = max; Sum = sum; Count = count }
 
-    member this.Minimum = (double this.Min) / 10.0
-    member this.Maximum = (double this.Max) / 10.0
-    member this.Mean = (double this.Sum / 10.0) / (double this.Count)
+    member this.Minimum = single this.Min / 10.0f
+    member this.Maximum = single this.Max / 10.0f
+    member this.Mean = single this.Sum / single (10 * this.Count)
+
+    override this.ToString () =
+      sprintf "%.1f/%.1f/%.1f" this.Minimum this.Mean this.Maximum
 
     /// We shall store temperature floating point numbers with one decimal digit
     /// as integers. This method adds a new such temperature to the statistics.
@@ -187,9 +189,6 @@ module Util =
         this.Sum <- this.Sum + tmp
         this.Count <- this.Count + 1
     
-    override this.ToString () =
-      sprintf "%.1f/%.1f/%.1f" this.Minimum this.Mean this.Maximum
-
     /// Merges another statistics object into this one.
     member this.Merge (other : Stat, set : bool) =
       if set then

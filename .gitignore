@@ -6,3 +6,5 @@ obj/
 .vscode/
 .ionide/
 data/
+*.nettrace
+*.speedscope.json
