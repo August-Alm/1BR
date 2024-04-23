@@ -15,7 +15,7 @@ module Challenge =
       member _.Run () = result <- f x
       member _.Result = result
     
-    /// Morally equivalent to `Array.Parallel.map` but tests show it's faster.
+    /// Morally equivalent to `Array.Parallel.map` but slightly faster for use case.
     let mapParallel (f : 'a -> 'b) (xs : 'a array) : 'b array =
       let mappings = xs |> Array.map (fun x -> Mapping (f, x))
       let threads = mappings |> Array.map (fun m -> Thread (fun () -> m.Run ()))
@@ -43,7 +43,7 @@ module Challenge =
       let temp = Temp.parse &input
       CityStats.add cityStats city temp
     cityStats
-
+  
   let run idealChunkLength input =
     input
     |> Input.chunkify idealChunkLength

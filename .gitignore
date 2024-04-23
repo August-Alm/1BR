@@ -5,6 +5,7 @@ obj/
 .vs/
 .vscode/
 .ionide/
-data/
+data/measurements.txt
+data/measurements.txt.zip
 *.nettrace
 *.speedscope.json
