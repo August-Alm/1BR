@@ -4,6 +4,7 @@ namespace OneBRC
 module Util =
 
   open System
+  open System.Numerics
   open System.Collections.Generic
   open Microsoft.FSharp.NativeInterop
   open System.Runtime.InteropServices
@@ -63,44 +64,28 @@ module Util =
       Array.ofSeq chunks
 
 
-  module private Parse =
-
-    /// Mutates `input` to the tail that follows the first occurrence of `b`
-    /// and returns the head that precedes it. If `b` is not found, it returns
-    /// `input` unchanged.
-    let inline readTo (b : byte) (input : Input byref) =
-      let mutable i = 0
-      let mutable found = false
-      while not found && int64 i < input.Length do
-        found <- NativePtr.readAt input.Ptr i = b
-        if not found then
-          i <- i + 1
-      if not found then
-        input.ReadOnlySpan
-      else
-        let tmp = input.ReadOnlySpan.Slice (0, int i)
-        input.Shift (i + 1)
-        tmp
-
   [<RequireQualifiedAccess>]
   module Temp =
 
-    let inline private asTemp init (span : ReadOnlySpan<byte>) =
-      let mutable n = init
-      for b in span.Slice (0, span.Length - 2) do
-        n <- n * 10 + int (b - '0'B)
-      let b = span[span.Length - 1]
-      n * 10 + int (b - '0'B)
+    let MAGIC_MULTIPLIER = 100L * 0x1000000L + 10L * 0x10000L + 1L
+    let DOT_DETECTOR = 0x10101000L
+    let ASCII_TO_DIGIT_MASK = 0x0F000F0F00L
 
-    /// Reads a temperature from `input` up to the first newline, and mutates
-    /// `input` to the tail that follows it. The temperature is returned as an
-    /// integer, with the decimal point implied before the last digit.
     let parse (input : Input byref) =
-      let span = Parse.readTo '\n'B &input
-      let mutable b = span[0]
-      let isNeg = (b = '-'B)
-      if isNeg then -(asTemp 0 (span.Slice 1))
-      else asTemp (int (b - '0'B)) (span.Slice 1)
+      let u = NativePtr.read<int64> (NativePtr.cast input.Ptr)
+      let negated = ~~~u
+      let broadcastSign = (negated <<< 59) >>> 63
+      let maskToRemoveSign = ~~~(broadcastSign &&& 0xFF)
+      let withSignRemoved = u &&& maskToRemoveSign
+      let dotPos = BitOperations.TrailingZeroCount (negated &&& DOT_DETECTOR)
+      let aligned = withSignRemoved <<< (28 - dotPos)
+      let digits = aligned &&& ASCII_TO_DIGIT_MASK
+      let absValue = ((digits * MAGIC_MULTIPLIER) >>> 32) &&& 0x3FFL
+      let temp = (absValue ^^^ broadcastSign) - broadcastSign
+      let nextLineStart = (dotPos >>> 3) + 3
+      input.Shift nextLineStart
+      int temp
+
 
   /// Represents a city name. Equivalent to `ReadOnlySpan<byte>` but with custom
   /// hashing, equality and comparison.
@@ -150,10 +135,19 @@ module Util =
     
   [<RequireQualifiedAccess>]
   module City =
+
     /// Reads a city name from `input` up to the first semicolon, and mutates
     /// `input` to the tail that follows it.
-    let parse (input : Input byref) = City (Parse.readTo ';'B &input)
-
+    let parse (input : Input byref) =
+      let mutable i = 0
+      let mutable found = false
+      while not found do
+        found <- (NativePtr.readAt input.Ptr i) = ';'B
+        if not found then
+          i <- i + 1
+      let tmp = input.ReadOnlySpan.Slice (0, int i)
+      input.Shift (i + 1)
+      City tmp
 
   /// Represents a temperature statistic, with minimum, mean and maximum
   /// properties, and an `Add` method to update the statistics with a new
