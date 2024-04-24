@@ -139,7 +139,6 @@ module Util =
       int temp
 
 
-
   /// Represents a temperature statistic, with minimum, mean and maximum
   /// properties, and an `Add` method to update the statistics with a new
   /// temperature, and a `Merge` method to merge two statistics.
