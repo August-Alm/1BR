@@ -60,30 +60,6 @@ module Util =
         p <- pNextChunk
       Array.ofSeq chunks
 
-
-  [<RequireQualifiedAccess>]
-  module Temp =
-
-    let private MAGIC_MULTIPLIER = 100L * 0x1000000L + 10L * 0x10000L + 1L
-    let private DOT_DETECTOR = 0x10101000L
-    let private ASCII_TO_DIGIT_MASK = 0x0F000F0F00L
-
-    let parse (input : Input byref) =
-      let u = NativePtr.read<int64> (NativePtr.cast input.Ptr)
-      let negated = ~~~u
-      let broadcastSign = (negated <<< 59) >>> 63
-      let maskToRemoveSign = ~~~(broadcastSign &&& 0xFF)
-      let withSignRemoved = u &&& maskToRemoveSign
-      let dotPos = BitOperations.TrailingZeroCount (negated &&& DOT_DETECTOR)
-      let aligned = withSignRemoved <<< (28 - dotPos)
-      let digits = aligned &&& ASCII_TO_DIGIT_MASK
-      let absValue = ((digits * MAGIC_MULTIPLIER) >>> 32) &&& 0x3FFL
-      let temp = (absValue ^^^ broadcastSign) - broadcastSign
-      let nextLineStart = (dotPos >>> 3) + 3
-      input.Shift nextLineStart
-      int temp
-
-
   /// Represents a city name. Equivalent to `ReadOnlySpan<byte>` but with custom
   /// hashing, equality and comparison.
   [<Struct; CustomEquality; CustomComparison>]
@@ -136,6 +112,34 @@ module Util =
       city
 
 
+  [<RequireQualifiedAccess>]
+  module Temp =
+
+    let private MAGIC_MULTIPLIER = 100L * 0x1000000L + 10L * 0x10000L + 1L
+    let private DOT_DETECTOR = 0x10101000L
+    let private ASCII_TO_DIGIT_MASK = 0x0F000F0F00L
+
+    /// Reads a temperature from `input` and mutates `input` to the tail that
+    /// follows it. Temperatures are fixed-precision floating point numbers
+    /// (with one decimal digit) encoded as the corresponding 10-times integer.
+    /// See "https://questdb.io/blog/1brc-merykittys-magic-swar/" for the algorithm
+    let parse (input : Input byref) =
+      let u = NativePtr.read<int64> (NativePtr.cast input.Ptr)
+      let negated = ~~~u
+      let broadcastSign = (negated <<< 59) >>> 63
+      let maskToRemoveSign = ~~~(broadcastSign &&& 0xFF)
+      let withSignRemoved = u &&& maskToRemoveSign
+      let dotPos = BitOperations.TrailingZeroCount (negated &&& DOT_DETECTOR)
+      let aligned = withSignRemoved <<< (28 - dotPos)
+      let digits = aligned &&& ASCII_TO_DIGIT_MASK
+      let absValue = ((digits * MAGIC_MULTIPLIER) >>> 32) &&& 0x3FFL
+      let temp = (absValue ^^^ broadcastSign) - broadcastSign
+      let nextLineStart = (dotPos >>> 3) + 3
+      input.Shift nextLineStart
+      int temp
+
+
+
   /// Represents a temperature statistic, with minimum, mean and maximum
   /// properties, and an `Add` method to update the statistics with a new
   /// temperature, and a `Merge` method to merge two statistics.
@@ -153,7 +157,7 @@ module Util =
     override this.ToString () =
       sprintf "%.1f/%.1f/%.1f" this.Minimum this.Mean this.Maximum
 
-    /// We shall store temperature floating point numbers with one decimal digit
+    /// We store temperature floating point numbers with one decimal digit
     /// as integers. This method adds a new such temperature to the statistics.
     member this.Add (tmp : int, set : bool) =
       if set then
