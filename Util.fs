@@ -9,6 +9,7 @@ module Util =
   open Microsoft.FSharp.NativeInterop
   open System.Runtime.InteropServices
 
+  [<RequireQualifiedAccess>]
   module private NativePtr =
 
     let inline cast<'t when 't : unmanaged> (ptr : nativeptr<byte>) =
@@ -63,9 +64,9 @@ module Util =
   [<RequireQualifiedAccess>]
   module Temp =
 
-    let MAGIC_MULTIPLIER = 100L * 0x1000000L + 10L * 0x10000L + 1L
-    let DOT_DETECTOR = 0x10101000L
-    let ASCII_TO_DIGIT_MASK = 0x0F000F0F00L
+    let private MAGIC_MULTIPLIER = 100L * 0x1000000L + 10L * 0x10000L + 1L
+    let private DOT_DETECTOR = 0x10101000L
+    let private ASCII_TO_DIGIT_MASK = 0x0F000F0F00L
 
     let parse (input : Input byref) =
       let u = NativePtr.read<int64> (NativePtr.cast input.Ptr)
@@ -134,6 +135,7 @@ module Util =
       input.Shift (i + 1)
       city
 
+
   /// Represents a temperature statistic, with minimum, mean and maximum
   /// properties, and an `Add` method to update the statistics with a new
   /// temperature, and a `Merge` method to merge two statistics.
@@ -143,9 +145,6 @@ module Util =
     val mutable private Max : int
     val mutable private Sum : int
     val mutable private Count : int
-
-    private new (min : int, max : int, sum : int, count : int) =
-      { Min = min; Max = max; Sum = sum; Count = count }
 
     member this.Minimum = single this.Min / 10.0f
     member this.Maximum = single this.Max / 10.0f
@@ -187,7 +186,7 @@ module Util =
 
     let create (capacity : int) = Dictionary<City, Stat> capacity
 
-    let private addMerge (cityStats : CityStats) (city : City) (stat : Stat) =
+    let inline private addMerge (cityStats : CityStats) (city : City) (stat : Stat) =
       let mutable exists = false
       let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityStats, city, &exists)
       statRef.Merge (stat, exists)
@@ -206,4 +205,3 @@ module Util =
       let mutable exists = false
       let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityState, city, &exists)
       statRef.Add (temp, not exists)
-
