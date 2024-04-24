@@ -18,7 +18,7 @@ module Challenge =
     /// Morally equivalent to `Array.Parallel.map` but slightly faster for use case.
     let mapParallel (f : 'a -> 'b) (xs : 'a array) : 'b array =
       let mappings = xs |> Array.map (fun x -> Mapping (f, x))
-      let threads = mappings |> Array.map (fun m -> Thread (fun () -> m.Run ()))
+      let threads = mappings |> Array.map (_.Run >> Thread)
       for t in threads do t.Start ()
       for t in threads do t.Join ()
       mappings |> Array.map _.Result
@@ -57,9 +57,9 @@ module Challenge =
   let mmfInput filePath =
     use mmf = MemoryMappedFile.CreateFromFile (filePath, FileMode.Open)
     use stream = new FileStream (filePath, FileMode.Open)
-    let fileLength = stream.Length
-    use accessor = mmf.CreateViewAccessor (0, fileLength, MemoryMappedFileAccess.Read)
+    let length = stream.Length
+    use accessor = mmf.CreateViewAccessor (0, length, MemoryMappedFileAccess.Read)
     use accessorHandle = accessor.SafeMemoryMappedViewHandle
     let mutable ptr = NativePtr.nullPtr<byte>
     accessorHandle.AcquirePointer &ptr
-    Input (ptr, fileLength)
+    Input (ptr, length)
