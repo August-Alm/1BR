@@ -98,8 +98,6 @@ module Util =
 
     override _.GetHashCode () =
       let prime = 16777619u
-      let pBuf = NativePtr.stackalloc<byte> 4
-      NativePtr.copy pBuf ptr
       let k = NativePtr.read<uint32> (NativePtr.cast ptr)
       int ((k * prime) ^^^ (uint length))
     
