@@ -36,7 +36,7 @@ module Challenge =
     printfn "}"
     
   let private runChunk (chunk : Input) =
-    let cityStats = CityStats.create 1024
+    let cityStats = CityStats.create 4096
     let mutable input = chunk
     while input.Length > 0L do
       let city = City.parse &input

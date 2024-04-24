@@ -22,17 +22,13 @@ module Util =
   /// but allows for int64 lengths.
   [<Struct>]
   type Input =
-    val mutable private ptr : nativeptr<byte>
-    val mutable private length : int64
-    new (ptr : nativeptr<byte>, length : int64) = { ptr = ptr; length = length }
-
-    member this.Ptr = this.ptr
-    member this.Length = this.length
-    member this.ReadOnlySpan = ReadOnlySpan<byte> (NativePtr.toVoidPtr this.ptr, int this.length)
+    val mutable Ptr : nativeptr<byte>
+    val mutable Length : int64
+    new (ptr : nativeptr<byte>, length : int64) = { Ptr = ptr; Length = length }
 
     member this.Shift (offset : int) =
-      this.ptr <- NativePtr.add this.ptr offset
-      this.length <- this.length - int64 offset
+      this.Ptr <- NativePtr.add this.Ptr offset
+      this.Length <- this.Length - int64 offset
 
   [<RequireQualifiedAccess>]
   module Input =
@@ -92,8 +88,6 @@ module Util =
   [<Struct; CustomEquality; CustomComparison>]
   type City (ptr : nativeptr<byte>, length : int) =
 
-    new (span : ReadOnlySpan<byte>) = use p = fixed span in City (p, span.Length)
-
     member _.ReadOnlySpan = ReadOnlySpan<byte> (NativePtr.toVoidPtr ptr, length)
 
     member this.Equals (other : City) = this.ReadOnlySpan.SequenceEqual other.ReadOnlySpan
@@ -145,9 +139,9 @@ module Util =
         found <- (NativePtr.readAt input.Ptr i) = ';'B
         if not found then
           i <- i + 1
-      let tmp = input.ReadOnlySpan.Slice (0, int i)
+      let city = City (input.Ptr, i)
       input.Shift (i + 1)
-      City tmp
+      city
 
   /// Represents a temperature statistic, with minimum, mean and maximum
   /// properties, and an `Add` method to update the statistics with a new
@@ -210,7 +204,7 @@ module Util =
     /// Merges a sequence of city statistics dictionaries into a single sequence
     /// sorted by city name.
     let merge (cityStatss : CityStats seq) =
-      let result = create 1024
+      let result = create 4096
       for cityStats in cityStatss do
         for KeyValue (city, stat) in cityStats do
           addMerge result city stat
