@@ -26,7 +26,7 @@ module Util =
     val mutable Length : int64
     new (ptr : nativeptr<byte>, length : int64) = { Ptr = ptr; Length = length }
 
-    member this.Shift (offset : int) =
+    member inline this.Shift (offset : int) =
       this.Ptr <- NativePtr.add this.Ptr offset
       this.Length <- this.Length - int64 offset
 
@@ -98,17 +98,10 @@ module Util =
 
     override _.GetHashCode () =
       let prime = 16777619u
-      if length > 3 then
-        let k = NativePtr.read<uint32> (NativePtr.cast ptr)
-        int ((k * prime) ^^^ (uint length))
-      elif length > 1 then
-        let k = uint (NativePtr.read<uint16> (NativePtr.cast ptr))
-        int ((k * prime) ^^^ (uint length))
-      elif length > 0 then
-        let k = uint (NativePtr.read<byte> (NativePtr.cast ptr))
-        int ((k * prime) ^^^ (uint length))
-      else
-        0
+      let pBuf = NativePtr.stackalloc<byte> 4
+      NativePtr.copy pBuf ptr
+      let k = NativePtr.read<uint32> (NativePtr.cast ptr)
+      int ((k * prime) ^^^ (uint length))
     
     override this.Equals (obj : obj) =
       match obj with
