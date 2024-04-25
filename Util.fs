@@ -8,6 +8,7 @@ module Util =
   open System.Collections.Generic
   open Microsoft.FSharp.NativeInterop
   open System.Runtime.InteropServices
+  open System.Runtime.CompilerServices
 
   [<RequireQualifiedAccess>]
   module private NativePtr =
@@ -62,12 +63,16 @@ module Util =
 
   /// Represents a city name. Equivalent to `ReadOnlySpan<byte>` but with custom
   /// hashing, equality and comparison.
-  [<Struct; CustomEquality; CustomComparison>]
+  [<Struct; IsReadOnly; CustomEquality; CustomComparison>]
   type City (ptr : nativeptr<byte>, length : int) =
+
+    member _.Ptr = ptr
+    member _.Length = length
 
     member _.ReadOnlySpan = ReadOnlySpan<byte> (NativePtr.toVoidPtr ptr, length)
 
-    member this.Equals (other : City) = this.ReadOnlySpan.SequenceEqual other.ReadOnlySpan
+    member this.Equals (other : City) =
+      (length = other.Length) && this.ReadOnlySpan.SequenceEqual other.ReadOnlySpan
     
     member this.CompareTo (other : City) = this.ReadOnlySpan.SequenceCompareTo other.ReadOnlySpan
 
@@ -75,8 +80,12 @@ module Util =
 
     override _.GetHashCode () =
       let prime = 16777619u
-      let k = NativePtr.read<uint32> (NativePtr.cast ptr)
-      int ((k * prime) ^^^ (uint length))
+      if length >= 3 then
+        let k = NativePtr.read<uint32> (NativePtr.cast ptr)
+        int ((k * prime) ^^^ (uint length))
+      else
+        let k = uint32 (NativePtr.read<uint16> (NativePtr.cast ptr))
+        int ((k * prime) ^^^ (uint length))
     
     override this.Equals (obj : obj) =
       match obj with
@@ -139,6 +148,17 @@ module Util =
       int temp
 
 
+  // clt b a = if b < a then 1 else 0
+  let inline clt (a : int) (b : int) = (# "clt" a b : int #)
+
+  // Branchless minimum; use when branch prediction is not effective.
+  let inline private minimum (a : int) (b : int) =
+    (a ^^^ ((b ^^^ a) &&& -clt b  a))  
+
+  // Branchless maximum; use when branch prediction is not effective.
+  let inline private maximum (a : int) (b : int) =
+    (a ^^^ ((a ^^^ b) &&& -clt a b))
+
   /// Represents a temperature statistic, with minimum, mean and maximum
   /// properties, and an `Add` method to update the statistics with a new
   /// temperature, and a `Merge` method to merge two statistics.
@@ -165,16 +185,18 @@ module Util =
         this.Sum <- tmp
         this.Count <- 1
       else
-        this.Min <- min this.Min tmp
-        this.Max <- max this.Max tmp
+        // Branch prediction is efficient here; few updates of min and max.
+        if tmp < this.Min then this.Min <- tmp
+        if tmp > this.Max then this.Max <- tmp
         this.Sum <- this.Sum + tmp
         this.Count <- this.Count + 1
     
     /// Merges another statistics object into this one.
     member this.Merge (other : Stat, set : bool) =
       if set then
-        this.Min <- min this.Min other.Min
-        this.Max <- max this.Max other.Max
+        // Branch prediction would be inefficient here.
+        this.Min <- minimum this.Min other.Min 
+        this.Max <- maximum this.Max other.Max
         this.Sum <- this.Sum + other.Sum
         this.Count <- this.Count + other.Count
       else
@@ -189,7 +211,7 @@ module Util =
 
     let create (capacity : int) = Dictionary<City, Stat> capacity
 
-    let inline private addMerge (cityStats : CityStats) (city : City) (stat : Stat) =
+    let inline addMerge (cityStats : CityStats) (city : City) (stat : Stat) =
       let mutable exists = false
       let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityStats, city, &exists)
       statRef.Merge (stat, exists)
@@ -208,3 +230,35 @@ module Util =
       let mutable exists = false
       let mutable statRef : byref<Stat> = &CollectionsMarshal.GetValueRefOrAddDefault (cityState, city, &exists)
       statRef.Add (temp, not exists)
+
+
+  [<Struct; StructLayout(LayoutKind.Auto)>]
+  type private Entry = {
+    HashCode : uint
+    Next : int
+    Key : City
+    Value : Stat
+  }
+
+  type StatDict () =
+    static let size = 4096
+    let mutable count = 0
+    let buckets = Array.zeroCreate<int> size
+    let entries = Array.zeroCreate<Entry> size
+    let keysPtr = NativePtr.ofNativeInt <| Marshal.AllocHGlobal (size * 101)
+    let mutable keysLength = 0
+
+    let add (city : City) (hashCode : uint) (fastMod : uint) =
+      count <- count + 1
+      let idx = count
+      let targetPtr = NativePtr.add keysPtr keysLength
+      let targetLength = if city.Length <= 3 then city.Length + 1 else city.Length
+      NativePtr.copyBlock targetPtr city.Ptr targetLength
+      keysLength <- keysLength + targetLength
+      City (targetPtr, targetLength)
+
+    let getAtUnsafe (idx : int) : byref<Entry> =
+      &entries[idx]
+
+
+    member _.Count = 42
